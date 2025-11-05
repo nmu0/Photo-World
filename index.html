@@ -1,0 +1,65 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>Photo World</title>
+
+    <!-- Mapbox CSS -->
+    <link href="https://api.mapbox.com/mapbox-gl-js/v2.15.0/mapbox-gl.css" rel="stylesheet" />
+
+    <!-- GSAP -->
+    <script src="https://unpkg.com/gsap@3.12.2/dist/gsap.min.js"></script>
+
+    <!-- Firebase (Compat version) -->
+    <script src="https://www.gstatic.com/firebasejs/9.22.2/firebase-app-compat.js"></script>
+    <script src="https://www.gstatic.com/firebasejs/9.22.2/firebase-firestore-compat.js"></script>
+    <script src="https://www.gstatic.com/firebasejs/9.22.2/firebase-storage-compat.js"></script>
+
+    <!-- Your CSS -->
+    <link rel="stylesheet" href="style.css" />
+</head>
+
+<!-- Custom Vibe Prompt Modal -->
+<div id="vibe-modal" class="hidden">
+    <div id="vibe-box">
+        <h3>What's the vibe?</h3>
+        <input type="text" id="vibe-input" placeholder="Enter a vibe..." />
+        <div class="vibe-buttons">
+            <button id="vibe-cancel">Cancel</button>
+            <button id="vibe-submit">Drop It</button>
+        </div>
+    </div>
+</div>
+
+
+<body>
+
+<h1>Photo World</h1>
+<input type="file" id="photo-upload" />
+<button id="drop-vibe-btn">Drop a Vibe</button>
+
+<!-- Map View -->
+<div id="map"></div>
+
+<!-- Feed View -->
+<div id="feed" class="hidden">
+    <h2>📸 Photo Feed</h2>
+    <div id="feed-list"></div>
+</div>
+
+<!-- Bottom Navigation -->
+<div id="bottom-nav">
+    <button id="home-btn">🏠 Home</button>
+    <button id="feed-btn">🖼 Feed</button>
+</div>
+
+<!-- Toast -->
+<div id="toast" class="hidden"></div>
+
+<!-- Mapbox JS + Your Script -->
+<script src="https://api.mapbox.com/mapbox-gl-js/v2.15.0/mapbox-gl.js"></script>
+<script src="script.js"></script>
+</body>
+</html>
+
