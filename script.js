@@ -17,11 +17,20 @@ function showToast(message) {
     toast.textContent = message;
     toast.classList.add("show");
     toast.classList.remove("hidden");
-
     setTimeout(() => {
         toast.classList.remove("show");
         toast.classList.add("hidden");
-    }, 2500);
+    }, 3000);
+}
+
+function openModal() {
+    document.getElementById("vibe-modal").classList.remove("hidden");
+    document.getElementById("vibe-input").value = "";
+    setTimeout(() => document.getElementById("vibe-input").focus(), 50);
+}
+
+function closeModal() {
+    document.getElementById("vibe-modal").classList.add("hidden");
 }
 
 // ====== Mapbox Setup ======
@@ -33,84 +42,89 @@ const map = new mapboxgl.Map({
     zoom: 2
 });
 
-gsap.from("#map", {
-    duration: 1,
-    opacity: 0,
-    y: 50
-});
+gsap.from("#map", { duration: 1, opacity: 0, y: 50 });
 
 // ====== Variables ======
 let selectedCoords = null;
 let uploadedPhotoURL = null;
-
-// ====== Handle map click ======
-map.on('click', (e) => {
-    selectedCoords = e.lngLat;
-    alert("Location selected! Now enter your vibe and photo (optional), then click 'Drop a Vibe'.");
-});
+let isUploading = false;
 
 // ====== Photo Upload (Base64) ======
-const photoInput = document.getElementById("photo-upload");
-
-photoInput.addEventListener("change", (e) => {
+document.getElementById("photo-upload").addEventListener("change", (e) => {
     const file = e.target.files[0];
     if (!file) return;
+    if (!file.type.startsWith("image/")) return showToast("Please upload an image file.");
 
-    if (!file.type.startsWith("image/")) {
-        alert("Please upload an image file.");
-        return;
-    }
-
+    isUploading = true;
     const reader = new FileReader();
-
     reader.onloadend = () => {
-        uploadedPhotoURL = reader.result; // base64 string
-        alert("Photo ready to upload!");
+        uploadedPhotoURL = reader.result;
+        isUploading = false;
+        showToast("📷 Photo ready! Now tap a spot on the map.");
     };
-
-    reader.readAsDataURL(file); // Convert to base64
+    reader.readAsDataURL(file);
 });
 
-// ====== Drop a Vibe ======
-document.getElementById("drop-vibe-btn").addEventListener("click", async () => {
-    if (!selectedCoords) {
-        alert("Click on the map to pick a location first.");
-        return;
+// ====== Map click → open modal ======
+map.on('click', (e) => {
+    if (e.originalEvent.target !== map.getCanvas()) return;
+    if (isUploading) return showToast("Photo is still uploading — please wait!");
+    if (!uploadedPhotoURL) return showToast("Upload a photo first, then tap a location!");
+
+    selectedCoords = e.lngLat;
+    openModal();
+});
+
+// ====== Drop a Vibe button ======
+document.getElementById("drop-vibe-btn").addEventListener("click", () => {
+    if (isUploading) return showToast("Photo is still uploading — please wait!");
+    if (!uploadedPhotoURL) return showToast("Please upload a photo first!");
+    if (!selectedCoords) return showToast("Tap the map to pick a location!");
+    openModal();
+});
+
+// ====== Close modal on backdrop click ======
+document.getElementById("vibe-modal").addEventListener("click", (e) => {
+    if (e.target === document.getElementById("vibe-modal")) closeModal();
+});
+
+// ====== Cancel modal ======
+document.getElementById("vibe-cancel").addEventListener("click", closeModal);
+
+// ====== Submit vibe ======
+document.getElementById("vibe-submit").addEventListener("click", () => {
+    const vibeText = document.getElementById("vibe-input").value.trim();
+    if (!vibeText) return showToast("Enter a vibe first!");
+    if (!selectedCoords) return showToast("No location — close and tap the map again.");
+
+    const MAX_SIZE = 900000;
+    if (uploadedPhotoURL && uploadedPhotoURL.length > MAX_SIZE) {
+        return showToast("⚠️ Photo too large — try a smaller image!");
     }
-
-    if (!uploadedPhotoURL) {
-        alert("Please upload a photo first!");
-        return;
-    }
-
-    document.getElementById("drop-vibe-btn").addEventListener("click", () => {
-        if (isUploading) return showToast("Photo is still uploading — please wait!");
-        if (!selectedCoords) return showToast("Click on the map to pick a location first.");
-        if (!uploadedPhotoURL) return showToast("Please upload a photo first!");
-
-        // Show the modal
-        document.getElementById("vibe-modal").classList.remove("hidden");
-        document.getElementById("vibe-input").value = "";
-    });
-
 
     const vibeData = {
-        vibeText: vibeText,
+        vibeText,
         lat: selectedCoords.lat,
         lng: selectedCoords.lng,
         photoURL: uploadedPhotoURL,
         timestamp: Date.now()
     };
 
-    try {
-        await db.collection("vibes").add(vibeData);
-        alert("Vibe saved!");
+    // Close the modal immediately — don't wait for Firestore
+    closeModal();
+    showToast("Dropping vibe... 🌍");
 
-        uploadedPhotoURL = null;
-        photoInput.value = "";
-    } catch (err) {
-        console.error("Error saving vibe:", err);
-    }
+    const capturedCoords = selectedCoords;
+    uploadedPhotoURL = null;
+    selectedCoords = null;
+    document.getElementById("photo-upload").value = "";
+
+    db.collection("vibes").add(vibeData)
+        .then(() => showToast("Vibe dropped! 🌍"))
+        .catch((err) => {
+            console.error("Firestore error:", err);
+            showToast("Error: " + err.message);
+        });
 });
 
 // ====== Show vibes on map ======
@@ -118,42 +132,37 @@ db.collection("vibes").onSnapshot((snapshot) => {
     snapshot.docChanges().forEach(change => {
         if (change.type === "added") {
             const data = change.doc.data();
+            if (!data.lat || !data.lng) return;
             const popupHTML = `
-        <p>${data.vibeText}</p>
-        ${data.photoURL ? `<img src="${data.photoURL}" style="max-width: 100px; border-radius: 8px;" />` : ""}
-      `;
+                <p>${data.vibeText || ""}</p>
+                ${data.photoURL ? `<img src="${data.photoURL}" style="max-width:100px;border-radius:8px;" />` : ""}
+            `;
             new mapboxgl.Marker()
                 .setLngLat([data.lng, data.lat])
                 .setPopup(new mapboxgl.Popup().setHTML(popupHTML))
                 .addTo(map);
         }
     });
-});
+}, (err) => console.error("Snapshot error:", err));
 
 // ====== View Switching ======
-const homeBtn = document.getElementById("home-btn");
-const feedBtn = document.getElementById("feed-btn");
-const mapView = document.getElementById("map");
-const feedView = document.getElementById("feed");
-
-homeBtn.addEventListener("click", () => {
-    mapView.classList.remove("hidden");
-    feedView.classList.add("hidden");
+document.getElementById("home-btn").addEventListener("click", () => {
+    document.getElementById("map").classList.remove("hidden");
+    document.getElementById("feed").classList.add("hidden");
     setTimeout(() => map.resize(), 100);
 });
 
-feedBtn.addEventListener("click", () => {
-    mapView.classList.add("hidden");
-    feedView.classList.remove("hidden");
+document.getElementById("feed-btn").addEventListener("click", () => {
+    document.getElementById("map").classList.add("hidden");
+    document.getElementById("feed").classList.remove("hidden");
 });
 
 // ====== Load Photo Feed ======
-const feedList = document.getElementById("feed-list");
-
 db.collection("vibes")
     .orderBy("timestamp", "desc")
     .limit(30)
     .onSnapshot(snapshot => {
+        const feedList = document.getElementById("feed-list");
         feedList.innerHTML = "";
         snapshot.forEach(doc => {
             const data = doc.data();
@@ -164,32 +173,4 @@ db.collection("vibes")
                 feedList.appendChild(imgEl);
             }
         });
-    });
-
-document.getElementById("vibe-cancel").addEventListener("click", () => {
-    document.getElementById("vibe-modal").classList.add("hidden");
-});
-
-document.getElementById("vibe-submit").addEventListener("click", async () => {
-    const vibeText = document.getElementById("vibe-input").value.trim();
-    if (!vibeText) return showToast("Enter a vibe first!");
-
-    const vibeData = {
-        vibeText,
-        lat: selectedCoords.lat,
-        lng: selectedCoords.lng,
-        photoURL: uploadedPhotoURL,
-        timestamp: Date.now()
-    };
-
-    try {
-        await db.collection("vibes").add(vibeData);
-        showToast("Vibe saved!");
-        document.getElementById("vibe-modal").classList.add("hidden");
-        uploadedPhotoURL = null;
-        document.getElementById("photo-upload").value = "";
-    } catch (err) {
-        console.error("Error saving vibe:", err);
-        showToast("Something went wrong!");
-    }
-});
+    }, (err) => console.error("Feed error:", err));
