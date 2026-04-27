@@ -1,9 +1,9 @@
 // ====== Firebase Setup ======
 const firebaseConfig = {
-    apiKey: "AIzaSyBIHbMOS0LhQT3D_DctalLTHdoUMQFg63w",
+    apiKey: "AIzaSyBIHbMOS0LHQT3D_DctaLITHdoUMQFg63w",
     authDomain: "world-of-vibes.firebaseapp.com",
     projectId: "world-of-vibes",
-    storageBucket: "world-of-vibes.appspot.com",
+    storageBucket: "world-of-vibes.firebasestorage.app",
     messagingSenderId: "50522382303",
     appId: "1:50522382303:web:8ac96e9d2cc55a7745ee6a",
     measurementId: "G-JTGPK5Q8HY"
