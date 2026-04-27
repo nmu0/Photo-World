@@ -9,52 +9,66 @@
     <script src="https://unpkg.com/gsap@3.12.2/dist/gsap.min.js"></script>
     <script src="https://www.gstatic.com/firebasejs/9.22.2/firebase-app-compat.js"></script>
     <script src="https://www.gstatic.com/firebasejs/9.22.2/firebase-firestore-compat.js"></script>
+    <script src="https://www.gstatic.com/firebasejs/9.22.2/firebase-auth-compat.js"></script>
     <link rel="stylesheet" href="style.css" />
 </head>
 <body>
 
-<!-- Header -->
-<div id="header">
-    <h1>Photo World</h1>
-    <div id="header-actions">
-        <label id="upload-label" for="photo-upload">Choose photo</label>
-        <input type="file" id="photo-upload" accept="image/*" />
-        <button id="post-btn" disabled>Post</button>
+<!-- Login Screen -->
+<div id="login-screen">
+    <div id="login-box">
+        <h1 id="login-title">Photo World</h1>
+        <p id="login-sub">A map of moments.</p>
+        <button id="google-signin-btn">Continue with Google</button>
     </div>
 </div>
 
-<!-- Vibe Modal -->
-<div id="vibe-modal" class="hidden">
-    <div id="vibe-box">
-        <div id="vibe-box-label">Add a caption</div>
-        <input type="text" id="vibe-input" placeholder="describe this moment..." />
-        <div class="vibe-buttons">
-            <button id="vibe-cancel">Cancel</button>
-            <button id="vibe-submit">Post</button>
+<!-- App (hidden until logged in) -->
+<div id="app" class="hidden">
+
+    <!-- Header -->
+    <div id="header">
+        <h1>Photo World</h1>
+        <div id="header-actions">
+            <label id="upload-label" for="photo-upload">Choose photo</label>
+            <input type="file" id="photo-upload" accept="image/*" />
+            <button id="post-btn" disabled>Post</button>
+            <div id="user-avatar-wrap">
+                <img id="user-avatar" src="" alt="" />
+            </div>
         </div>
     </div>
-</div>
 
-<!-- Main -->
-<div id="main">
-
-    <!-- Map View -->
-    <div id="map">
-        <div id="map-hint">Tap anywhere to place your photo</div>
+    <!-- Vibe Modal -->
+    <div id="vibe-modal" class="hidden">
+        <div id="vibe-box">
+            <div id="vibe-box-label">Add a caption</div>
+            <input type="text" id="vibe-input" placeholder="describe this moment..." />
+            <div class="vibe-buttons">
+                <button id="vibe-cancel">Cancel</button>
+                <button id="vibe-submit">Post</button>
+            </div>
+        </div>
     </div>
 
-    <!-- Feed View -->
-    <div id="feed" class="hidden">
-        <div id="feed-header"><h2>Recent</h2></div>
-        <div id="feed-list"></div>
+    <!-- Main -->
+    <div id="main">
+        <div id="map">
+            <div id="map-hint">Tap anywhere to place your photo</div>
+        </div>
+        <div id="feed" class="hidden">
+            <div id="feed-header"><h2>Recent</h2></div>
+            <div id="feed-list"></div>
+        </div>
     </div>
 
-</div>
+    <!-- Bottom Nav -->
+    <div id="bottom-nav">
+        <button id="home-btn" class="active">Map</button>
+        <button id="feed-btn">Feed</button>
+        <button id="signout-btn">Sign out</button>
+    </div>
 
-<!-- Bottom Nav -->
-<div id="bottom-nav">
-    <button id="home-btn" class="active">Map</button>
-    <button id="feed-btn">Feed</button>
 </div>
 
 <!-- Toast -->
