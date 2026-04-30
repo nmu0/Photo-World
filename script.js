@@ -1,4 +1,3 @@
-// ====== Firebase Setup ======
 const firebaseConfig = {
     apiKey: "AIzaSyBIHbMOS0LHQT3D_DctaLITHdoUMQFg63w",
     authDomain: "world-of-vibes.firebaseapp.com",
@@ -8,292 +7,304 @@ const firebaseConfig = {
     appId: "1:50522382303:web:8ac96e9d2cc55a7745ee6a",
     measurementId: "G-JTGPK5Q8HY"
 };
-
 firebase.initializeApp(firebaseConfig);
 const db = firebase.firestore();
 const auth = firebase.auth();
 
-// ====== State ======
-let currentUser = null;
-let selectedCoords = null;
-let uploadedPhotoURL = null;
-let isUploading = false;
-let mapInitialized = false;
-let map = null;
+let currentUser = null, selectedCoords = null, uploadedPhotoURL = null;
+let map = null, mapReady = false, allVibes = [], activeTab = 'world';
 
-// ====== Toast ======
-function showToast(message) {
-    const toast = document.getElementById("toast");
-    toast.textContent = message;
-    toast.classList.add("show");
-    setTimeout(() => toast.classList.remove("show"), 3000);
+// ── Toast ──
+function showToast(msg) {
+    const t = document.getElementById('toast');
+    document.getElementById('toast-text').textContent = msg;
+    t.classList.add('show');
+    clearTimeout(t._t);
+    t._t = setTimeout(() => t.classList.remove('show'), 3000);
 }
 
-// ====== Modal ======
-function openModal() {
-    document.getElementById("vibe-modal").classList.remove("hidden");
-    document.getElementById("vibe-input").value = "";
-    setTimeout(() => document.getElementById("vibe-input").focus(), 50);
-}
-function closeModal() {
-    document.getElementById("vibe-modal").classList.add("hidden");
+function timeAgo(ts) {
+    const d = Date.now() - ts, m = Math.floor(d/60000);
+    if (m < 1) return 'just now';
+    if (m < 60) return m + 'm ago';
+    const h = Math.floor(m/60);
+    if (h < 24) return h + 'h ago';
+    return Math.floor(h/24) + 'd ago';
 }
 
-// ====== Auth ======
-document.getElementById("google-signin-btn").addEventListener("click", () => {
-    const provider = new firebase.auth.GoogleAuthProvider();
-    auth.signInWithPopup(provider).catch(err => {
-        console.error(err);
-        showToast("Sign in failed. Try again.");
-    });
+// ── Auth ──
+document.getElementById('google-signin-btn').addEventListener('click', () => {
+    auth.signInWithPopup(new firebase.auth.GoogleAuthProvider())
+        .catch(err => showToast('Sign in failed: ' + err.code));
 });
 
-document.getElementById("signout-btn").addEventListener("click", () => {
-    auth.signOut();
+document.getElementById('signout-x-btn').addEventListener('click', () => {
+    document.getElementById('signout-modal').classList.remove('hidden');
 });
+document.getElementById('signout-confirm').addEventListener('click', () => auth.signOut());
 
-auth.onAuthStateChanged((user) => {
+auth.onAuthStateChanged(user => {
     if (user) {
         currentUser = user;
-        document.getElementById("login-screen").classList.add("hidden");
-        document.getElementById("app").classList.remove("hidden");
-
-        // Set avatar
-        const avatar = document.getElementById("user-avatar");
+        document.getElementById('login-screen').classList.add('hidden');
+        document.getElementById('app').classList.remove('hidden');
         if (user.photoURL) {
-            avatar.src = user.photoURL;
-            avatar.style.display = "block";
+            ['user-avatar','taskbar-avatar','profile-avatar-large'].forEach(id => {
+                const el = document.getElementById(id);
+                el.src = user.photoURL;
+                el.classList.remove('hidden');
+            });
         }
-
-        if (!mapInitialized) initMap();
+        document.getElementById('profile-name').textContent = user.displayName || 'You';
+        document.getElementById('status-user').textContent = user.displayName || user.email;
+        if (!mapReady) initMap();
     } else {
         currentUser = null;
-        document.getElementById("login-screen").classList.remove("hidden");
-        document.getElementById("app").classList.add("hidden");
+        document.getElementById('login-screen').classList.remove('hidden');
+        document.getElementById('app').classList.add('hidden');
     }
 });
 
-// ====== Init Map (only after login) ======
+// ── Map ──
 function initMap() {
-    mapInitialized = true;
-
+    mapReady = true;
     mapboxgl.accessToken = 'pk.eyJ1Ijoibm11cyIsImEiOiJjbThsYTdhemExMHpwMmpweDV5eXVzbm9qIn0.Fy0lhJ_EdhNGPG7BBVqnSQ';
     map = new mapboxgl.Map({
         container: 'map',
         style: 'mapbox://styles/mapbox/light-v11',
-        center: [0, 20],
-        zoom: 2
+        center: [0, 20], zoom: 2,
+        attributionControl: false
     });
 
-    gsap.from("#header", { duration: 0.6, opacity: 0, y: -10 });
-    gsap.from("#map", { duration: 0.8, opacity: 0, delay: 0.2 });
+    // Tint the map aqua/blue once loaded
+    map.on('load', () => {
+        map.resize();
+        // Tint water layers aqua
+        map.setPaintProperty('water', 'fill-color', '#a8d8f0');
+        map.setPaintProperty('water-shadow', 'fill-color', '#80c0e8');
+        // Land slightly lavender
+        try {
+            map.setPaintProperty('land', 'background-color', '#e8ecff');
+        } catch(e) {}
+        // Country fills
+        ['landcover','national-park','land-structure-polygon'].forEach(layer => {
+            try { map.setPaintProperty(layer, 'fill-color', '#dce4ff'); } catch(e) {}
+        });
+        loadVibes();
+    });
 
-    map.on('click', (e) => {
-        if (e.originalEvent.target !== map.getCanvas()) return;
-        if (!uploadedPhotoURL) {
-            showToast("Choose a photo first.");
-            return;
-        }
+    map.on('click', e => {
+        if (!uploadedPhotoURL) { flashHint(); return; }
         selectedCoords = e.lngLat;
-        showToast("Location set.");
-        openModal();
+        openCaptionModal();
     });
 
-    loadVibes();
+    gsap.from('#main-window', { duration: 0.5, opacity: 0, scale: 0.97, ease: 'power2.out' });
 }
 
-// ====== Photo Upload ======
-const photoUpload = document.getElementById("photo-upload");
-const uploadLabel = document.getElementById("upload-label");
-const postBtn = document.getElementById("post-btn");
+function flashHint() {
+    const h = document.getElementById('map-hint');
+    h.classList.add('visible');
+    clearTimeout(h._t);
+    h._t = setTimeout(() => h.classList.remove('visible'), 2500);
+}
 
-photoUpload.addEventListener("change", (e) => {
+// ── Upload ──
+const photoUpload = document.getElementById('photo-upload');
+const uploadLabel = document.getElementById('upload-label');
+const previewWrap = document.getElementById('photo-preview-wrap');
+const previewImg  = document.getElementById('photo-preview');
+const postBtn     = document.getElementById('post-btn');
+
+photoUpload.addEventListener('change', e => {
     const file = e.target.files[0];
-    if (!file) return;
-    if (!file.type.startsWith("image/")) return showToast("Image files only.");
-
-    isUploading = true;
-    uploadLabel.textContent = "Loading...";
-
+    if (!file || !file.type.startsWith('image/')) return;
+    if (file.size > 1500000) return showToast('Photo too large — try under 1MB');
     const reader = new FileReader();
     reader.onloadend = () => {
-        if (reader.result.length > 900000) {
-            isUploading = false;
-            uploadLabel.textContent = "Choose photo";
-            return showToast("Photo too large — try under 700KB.");
-        }
+        if (reader.result.length > 900000) return showToast('Photo too large after encoding');
         uploadedPhotoURL = reader.result;
-        isUploading = false;
-        uploadLabel.textContent = "Photo ready";
-        uploadLabel.classList.add("ready");
+        previewImg.src = uploadedPhotoURL;
+        previewWrap.classList.remove('hidden');
+        uploadLabel.classList.add('hidden');
         postBtn.disabled = false;
-        showToast("Photo loaded. Tap the map to place it.");
+        showToast('📍 Click map to drop your photo');
+        flashHint();
     };
     reader.readAsDataURL(file);
 });
 
-// ====== Post button ======
-postBtn.addEventListener("click", () => {
-    if (!selectedCoords) {
-        const hint = document.getElementById("map-hint");
-        hint.classList.add("visible");
-        setTimeout(() => hint.classList.remove("visible"), 3000);
-        document.getElementById("map").classList.remove("hidden");
-        document.getElementById("feed").classList.add("hidden");
-        document.getElementById("home-btn").classList.add("active");
-        document.getElementById("feed-btn").classList.remove("active");
-        setTimeout(() => map.resize(), 100);
-        return;
-    }
-    openModal();
+document.getElementById('photo-clear').addEventListener('click', () => {
+    uploadedPhotoURL = null; selectedCoords = null;
+    photoUpload.value = ''; previewImg.src = '';
+    previewWrap.classList.add('hidden');
+    uploadLabel.classList.remove('hidden');
+    postBtn.disabled = true;
 });
 
-// ====== Modal buttons ======
-document.getElementById("vibe-modal").addEventListener("click", (e) => {
-    if (e.target === document.getElementById("vibe-modal")) closeModal();
+postBtn.addEventListener('click', () => {
+    if (!selectedCoords) { flashHint(); showToast('Click map to pick a spot'); return; }
+    openCaptionModal();
 });
-document.getElementById("vibe-cancel").addEventListener("click", closeModal);
 
-document.getElementById("vibe-submit").addEventListener("click", () => {
-    const caption = document.getElementById("vibe-input").value.trim();
-    if (!caption) return showToast("Add a caption.");
-    if (!selectedCoords) return showToast("No location set.");
+// ── Caption modal ──
+const captionModal = document.getElementById('caption-modal');
+const captionInput = document.getElementById('caption-input');
+const captionPreview = document.getElementById('caption-preview-img');
 
-    const vibeData = {
-        vibeText: caption,
-        lat: selectedCoords.lat,
-        lng: selectedCoords.lng,
+function openCaptionModal() {
+    captionPreview.src = uploadedPhotoURL;
+    captionInput.value = '';
+    document.getElementById('caption-char-count').textContent = '0 / 120 characters';
+    captionModal.classList.remove('hidden');
+    setTimeout(() => captionInput.focus(), 80);
+}
+function closeCaptionModal() { captionModal.classList.add('hidden'); }
+
+captionInput.addEventListener('input', () => {
+    document.getElementById('caption-char-count').textContent = captionInput.value.length + ' / 120 characters';
+});
+captionInput.addEventListener('keydown', e => {
+    if (e.key === 'Enter') document.getElementById('caption-submit').click();
+});
+
+document.getElementById('caption-close-btn').onclick = closeCaptionModal;
+document.getElementById('caption-cancel').onclick = closeCaptionModal;
+captionModal.addEventListener('click', e => { if (e.target === captionModal) closeCaptionModal(); });
+
+document.getElementById('caption-submit').addEventListener('click', () => {
+    const text = captionInput.value.trim();
+    if (!text) return showToast('Add a caption first');
+    if (!selectedCoords) return showToast('Pick a location on the map');
+
+    const vibe = {
+        vibeText: text,
+        lat: selectedCoords.lat, lng: selectedCoords.lng,
         photoURL: uploadedPhotoURL,
         timestamp: Date.now(),
         uid: currentUser.uid,
-        displayName: currentUser.displayName || "anonymous",
-        userPhoto: currentUser.photoURL || ""
+        displayName: currentUser.displayName || 'anon',
+        userPhoto: currentUser.photoURL || ''
     };
 
-    closeModal();
-    showToast("Posting...");
+    closeCaptionModal();
+    showToast('Posting... 💾');
 
-    uploadedPhotoURL = null;
-    selectedCoords = null;
-    photoUpload.value = "";
-    uploadLabel.textContent = "Choose photo";
-    uploadLabel.classList.remove("ready");
+    const coords = { lat: selectedCoords.lat, lng: selectedCoords.lng };
+    uploadedPhotoURL = null; selectedCoords = null;
+    photoUpload.value = ''; previewImg.src = '';
+    previewWrap.classList.add('hidden');
+    uploadLabel.classList.remove('hidden');
     postBtn.disabled = true;
 
-    db.collection("vibes").add(vibeData)
-        .then(() => showToast("Posted."))
-        .catch((err) => showToast("Error: " + err.message));
+    db.collection('vibes').add(vibe).then(() => {
+        showToast('Posted! 🌍');
+        map.flyTo({ center: [coords.lng, coords.lat], zoom: 10, duration: 1600 });
+        document.getElementById('address-bar').textContent =
+            '🌍 photoworld://map/' + coords.lat.toFixed(2) + ',' + coords.lng.toFixed(2);
+    }).catch(err => showToast('Error: ' + err.message));
 });
 
-// ====== Load vibes on map + feed ======
+// ── Load vibes ──
 function loadVibes() {
-    // Map markers
-    db.collection("vibes").onSnapshot((snapshot) => {
-        snapshot.docChanges().forEach(change => {
-            if (change.type === "added") {
-                const data = change.doc.data();
-                const docId = change.doc.id;
-                if (!data.lat || !data.lng) return;
-
-                const el = document.createElement("div");
-                el.style.cssText = `
-                    width: 36px; height: 36px;
-                    border: 2px solid #0a0a0a;
-                    background: #0a0a0a;
-                    overflow: hidden;
-                    cursor: pointer;
-                    box-shadow: 0 2px 8px rgba(0,0,0,0.25);
-                `;
-                if (data.photoURL) {
-                    el.style.backgroundImage = `url(${data.photoURL})`;
-                    el.style.backgroundSize = "cover";
-                    el.style.backgroundPosition = "center";
-                }
-
-                const isOwner = currentUser && data.uid === currentUser.uid;
-                const deleteBtn = isOwner
-                    ? `<button onclick="deleteVibe('${docId}', this)" style="
-                        margin-top:8px; width:100%; padding:6px;
-                        font-size:0.65rem; letter-spacing:0.12em; text-transform:uppercase;
-                        background:none; border:1px solid #d4d4d4; color:#999; cursor:pointer;
-                        font-family:'Helvetica Neue',sans-serif;">Delete</button>`
-                    : "";
-
-                const popupHTML = `
-                    <div style="font-family:'Helvetica Neue',sans-serif; max-width:200px;">
-                        ${data.photoURL ? `<img src="${data.photoURL}" style="width:100%;display:block;margin-bottom:8px;" />` : ""}
-                        <div style="font-size:0.75rem;letter-spacing:0.06em;color:#444;padding:0 2px 2px;">${data.vibeText || ""}</div>
-                        <div style="font-size:0.65rem;letter-spacing:0.08em;color:#999;padding:0 2px 4px;">${data.displayName || ""}</div>
-                        ${deleteBtn}
-                    </div>
-                `;
-
-                new mapboxgl.Marker({ element: el })
-                    .setLngLat([data.lng, data.lat])
-                    .setPopup(new mapboxgl.Popup({ offset: 20, closeButton: false })
-                        .setHTML(popupHTML))
-                    .addTo(map);
-            }
-        });
-    }, (err) => console.error("Snapshot error:", err));
-
-    // Feed
-    db.collection("vibes")
-        .orderBy("timestamp", "desc")
-        .limit(30)
-        .onSnapshot(snapshot => {
-            const feedList = document.getElementById("feed-list");
-            feedList.innerHTML = "";
-            snapshot.forEach(doc => {
-                const data = doc.data();
-                const docId = doc.id;
-                if (!data.photoURL) return;
-
-                const isOwner = currentUser && data.uid === currentUser.uid;
-
-                const wrap = document.createElement("div");
-                wrap.className = "feed-img-wrap";
-
-                const img = document.createElement("img");
-                img.src = data.photoURL;
-                img.className = "feed-img";
-                img.loading = "lazy";
-                wrap.appendChild(img);
-
-                const meta = document.createElement("div");
-                meta.className = "feed-meta";
-                meta.innerHTML = `
-                    <span class="feed-caption">${data.vibeText || ""}</span>
-                    <span class="feed-author">${data.displayName || ""}</span>
-                    ${isOwner ? `<button class="feed-delete-btn" onclick="deleteVibe('${docId}', this)">Delete</button>` : ""}
-                `;
-                wrap.appendChild(meta);
-                feedList.appendChild(wrap);
-            });
-        }, (err) => console.error("Feed error:", err));
+    db.collection('vibes').onSnapshot(snapshot => {
+        allVibes = [];
+        snapshot.forEach(doc => allVibes.push({ id: doc.id, ...doc.data() }));
+        document.getElementById('status-count').textContent = allVibes.length + ' objects';
+        renderFeed();
+        renderMarkers();
+    }, err => console.error(err));
 }
 
-// ====== Delete vibe ======
-window.deleteVibe = function(docId, btn) {
-    if (!currentUser) return;
-    btn.textContent = "Deleting...";
-    db.collection("vibes").doc(docId).delete()
-        .then(() => showToast("Deleted."))
-        .catch(err => showToast("Error: " + err.message));
+let markersOnMap = [];
+function renderMarkers() {
+    markersOnMap.forEach(m => m.remove());
+    markersOnMap = [];
+    allVibes.forEach(v => {
+        if (!v.lat || !v.lng) return;
+        const el = document.createElement('div');
+        el.className = 'map-marker';
+        if (v.photoURL) el.style.backgroundImage = `url(${v.photoURL})`;
+
+        const isOwner = currentUser && v.uid === currentUser.uid;
+        const popup = new mapboxgl.Popup({ offset: 22, closeButton: true, maxWidth: '210px' })
+            .setHTML(`
+                ${v.photoURL ? `<img class="popup-img" src="${v.photoURL}" />` : ''}
+                <div class="popup-body">
+                    <div class="popup-caption">${v.vibeText || ''}</div>
+                    <div class="popup-author">${v.displayName || ''}</div>
+                    <div class="popup-time">${timeAgo(v.timestamp)}</div>
+                    ${isOwner ? `<button class="popup-delete" onclick="deleteVibe('${v.id}')">🗑 Delete</button>` : ''}
+                </div>
+            `);
+
+        const marker = new mapboxgl.Marker({ element: el })
+            .setLngLat([v.lng, v.lat])
+            .setPopup(popup)
+            .addTo(map);
+        markersOnMap.push(marker);
+    });
+}
+
+function renderFeed() {
+    const list = document.getElementById('feed-list');
+    list.innerHTML = '';
+    const myVibes = allVibes.filter(v => currentUser && v.uid === currentUser.uid);
+    const vibes = activeTab === 'profile' ? myVibes : allVibes;
+    vibes.sort((a,b) => b.timestamp - a.timestamp);
+
+    document.getElementById('profile-post-count').textContent =
+        myVibes.length + ' post' + (myVibes.length !== 1 ? 's' : '');
+
+    const profileHeader = document.getElementById('profile-header');
+    profileHeader.classList.toggle('hidden', activeTab !== 'profile');
+
+    vibes.forEach(v => {
+        if (!v.photoURL) return;
+        const isOwner = currentUser && v.uid === currentUser.uid;
+        const item = document.createElement('div');
+        item.className = 'feed-item';
+        item.innerHTML = `
+            <img class="feed-item-img" src="${v.photoURL}" loading="lazy" />
+            <div class="feed-item-info">
+                <div class="feed-item-caption">${v.vibeText || ''}</div>
+                <div class="feed-item-meta">${v.displayName || ''} · ${timeAgo(v.timestamp)}</div>
+            </div>
+            ${isOwner ? `<button class="win98-btn feed-item-delete" onclick="deleteVibe('${v.id}', event)">🗑</button>` : ''}
+        `;
+        item.addEventListener('click', e => {
+            if (e.target.classList.contains('feed-item-delete')) return;
+            if (v.lat && v.lng) map.flyTo({ center: [v.lng, v.lat], zoom: 10, duration: 1400 });
+        });
+        list.appendChild(item);
+    });
+}
+
+window.deleteVibe = function(id, e) {
+    if (e) e.stopPropagation();
+    if (!confirm('Delete this post?')) return;
+    db.collection('vibes').doc(id).delete()
+        .then(() => showToast('Deleted'))
+        .catch(err => showToast('Error: ' + err.message));
 };
 
-// ====== Nav ======
-document.getElementById("home-btn").addEventListener("click", () => {
-    document.getElementById("map").classList.remove("hidden");
-    document.getElementById("feed").classList.add("hidden");
-    document.getElementById("home-btn").classList.add("active");
-    document.getElementById("feed-btn").classList.remove("active");
-    setTimeout(() => map && map.resize(), 100);
+// ── Tabs ──
+document.querySelectorAll('.sidebar-tab').forEach(tab => {
+    tab.addEventListener('click', () => {
+        document.querySelectorAll('.sidebar-tab').forEach(t => t.classList.remove('active'));
+        tab.classList.add('active');
+        activeTab = tab.dataset.tab;
+        renderFeed();
+    });
 });
 
-document.getElementById("feed-btn").addEventListener("click", () => {
-    document.getElementById("map").classList.add("hidden");
-    document.getElementById("feed").classList.remove("hidden");
-    document.getElementById("feed-btn").classList.add("active");
-    document.getElementById("home-btn").classList.remove("active");
-});
+// ── Clock ──
+function updateClock() {
+    const s = new Date().toLocaleTimeString([], { hour:'2-digit', minute:'2-digit' });
+    ['clock-time','app-clock'].forEach(id => {
+        const el = document.getElementById(id);
+        if (el) el.textContent = s;
+    });
+}
+setInterval(updateClock, 1000);
+updateClock();

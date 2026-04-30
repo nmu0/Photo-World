@@ -2,10 +2,10 @@
 <html lang="en">
 <head>
     <meta charset="UTF-8" />
-    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0" />
     <title>Photo World</title>
-
     <link href="https://api.mapbox.com/mapbox-gl-js/v2.15.0/mapbox-gl.css" rel="stylesheet" />
+    <link href="https://fonts.googleapis.com/css2?family=Press+Start+2P&family=VT323:wght@400&display=swap" rel="stylesheet" />
     <script src="https://unpkg.com/gsap@3.12.2/dist/gsap.min.js"></script>
     <script src="https://www.gstatic.com/firebasejs/9.22.2/firebase-app-compat.js"></script>
     <script src="https://www.gstatic.com/firebasejs/9.22.2/firebase-firestore-compat.js"></script>
@@ -14,65 +14,242 @@
 </head>
 <body>
 
-<!-- Login Screen -->
+<!-- ══ BOOT SCREEN / LOGIN ══ -->
 <div id="login-screen">
-    <div id="login-box">
-        <h1 id="login-title">Photo World</h1>
-        <p id="login-sub">A map of moments.</p>
-        <button id="google-signin-btn">Continue with Google</button>
+    <div id="desktop">
+        <!-- desktop icons -->
+        <div class="desktop-icon" id="icon-mypc">
+            <div class="icon-img">🖥️</div>
+            <div class="icon-label">My Computer</div>
+        </div>
+        <div class="desktop-icon" id="icon-trash">
+            <div class="icon-img">🗑️</div>
+            <div class="icon-label">Recycle Bin</div>
+        </div>
+        <div class="desktop-icon" id="icon-photos">
+            <div class="icon-img">🌍</div>
+            <div class="icon-label">Photo World</div>
+        </div>
+
+        <!-- Login window -->
+        <div class="win98-window" id="login-window">
+            <div class="win98-titlebar">
+                <span class="win98-titlebar-icon">🌍</span>
+                <span class="win98-titlebar-text">Photo World — Sign In</span>
+                <div class="win98-titlebar-btns">
+                    <button class="win98-btn-sm">_</button>
+                    <button class="win98-btn-sm">□</button>
+                    <button class="win98-btn-sm">✕</button>
+                </div>
+            </div>
+            <div class="win98-menubar">
+                <span>File</span><span>Edit</span><span>View</span><span>Help</span>
+            </div>
+            <div class="win98-body" id="login-body">
+                <div id="login-logo-row">
+                    <div id="login-pixel-globe">🌍</div>
+                    <div>
+                        <div id="login-title">PHOTO WORLD</div>
+                        <div id="login-sub">drop your moment on the map</div>
+                    </div>
+                </div>
+                <div class="win98-field-row">
+                    <label class="win98-label">Account:</label>
+                    <input class="win98-input" type="text" value="google_user@gmail.com" readonly />
+                </div>
+                <div class="win98-field-row">
+                    <label class="win98-label">Password:</label>
+                    <input class="win98-input" type="password" value="••••••••" readonly />
+                </div>
+                <div class="win98-btn-row">
+                    <button class="win98-btn" id="google-signin-btn">OK</button>
+                    <button class="win98-btn">Cancel</button>
+                    <button class="win98-btn">Help</button>
+                </div>
+                <div id="login-status-bar" class="win98-statusbar">
+                    <span>🔒 Secure connection</span>
+                    <span>Google Auth v2.0</span>
+                </div>
+            </div>
+        </div>
+
+        <!-- Taskbar -->
+        <div id="taskbar">
+            <button id="start-btn">
+                <span>⊞</span> Start
+            </button>
+            <div id="taskbar-items">
+                <div class="taskbar-item active">🌍 Photo World</div>
+            </div>
+            <div id="taskbar-clock">
+                <span id="clock-time">12:00 PM</span>
+            </div>
+        </div>
     </div>
 </div>
 
-<!-- App (hidden until logged in) -->
+<!-- ══ APP ══ -->
 <div id="app" class="hidden">
 
-    <!-- Header -->
-    <div id="header">
-        <h1>Photo World</h1>
-        <div id="header-actions">
-            <label id="upload-label" for="photo-upload">Choose photo</label>
-            <input type="file" id="photo-upload" accept="image/*" />
-            <button id="post-btn" disabled>Post</button>
-            <div id="user-avatar-wrap">
-                <img id="user-avatar" src="" alt="" />
+    <!-- Desktop bg -->
+    <div id="app-desktop">
+
+        <!-- Top window chrome -->
+        <div class="win98-window" id="main-window">
+            <div class="win98-titlebar" id="main-titlebar">
+                <span class="win98-titlebar-icon">🌍</span>
+                <span class="win98-titlebar-text">Photo World — Map Explorer</span>
+                <div class="win98-titlebar-btns">
+                    <button class="win98-btn-sm" id="minimize-btn">_</button>
+                    <button class="win98-btn-sm">□</button>
+                    <button class="win98-btn-sm" id="signout-x-btn">✕</button>
+                </div>
+            </div>
+
+            <!-- Address / toolbar bar -->
+            <div id="toolbar">
+                <div id="toolbar-nav">
+                    <button class="win98-btn toolbar-navbtn" id="back-btn">◀ Back</button>
+                    <button class="win98-btn toolbar-navbtn" id="fwd-btn">Fwd ▶</button>
+                    <button class="win98-btn toolbar-navbtn" id="refresh-btn">↺</button>
+                </div>
+                <div id="address-bar-wrap">
+                    <span id="address-label">Address</span>
+                    <div id="address-bar">🌍 photoworld://map/explore</div>
+                </div>
+                <div id="toolbar-right">
+                    <div id="upload-area">
+                        <label class="win98-btn" id="upload-label" for="photo-upload">📁 Open</label>
+                        <input type="file" id="photo-upload" accept="image/*" />
+                        <div id="photo-preview-wrap" class="hidden">
+                            <img id="photo-preview" src="" alt="" />
+                            <button id="photo-clear" class="win98-btn-sm">✕</button>
+                        </div>
+                    </div>
+                    <button class="win98-btn" id="post-btn" disabled>💾 Post</button>
+                    <img id="user-avatar" src="" alt="" class="hidden" />
+                </div>
+            </div>
+
+            <!-- Main content -->
+            <div id="main-content">
+                <!-- Map -->
+                <div id="map-pane">
+                    <div id="map"></div>
+                    <div id="map-hint" class="win98-popup-hint">
+                        📍 Click on the map to drop your photo here
+                    </div>
+                </div>
+
+                <!-- Sidebar -->
+                <div id="sidebar">
+                    <!-- Sidebar tabs -->
+                    <div class="win98-window sidebar-panel">
+                        <div class="win98-titlebar sidebar-titlebar">
+                            <span class="win98-titlebar-icon">📁</span>
+                            <span class="win98-titlebar-text">Explorer</span>
+                        </div>
+                        <div id="sidebar-tabs">
+                            <button class="sidebar-tab active" data-tab="world">🌍 World</button>
+                            <button class="sidebar-tab" data-tab="profile">👤 Profile</button>
+                        </div>
+
+                        <!-- Profile header -->
+                        <div id="profile-header" class="hidden">
+                            <img id="profile-avatar-large" src="" alt="" />
+                            <div id="profile-info">
+                                <div id="profile-name"></div>
+                                <div id="profile-post-count"></div>
+                            </div>
+                        </div>
+
+                        <!-- Feed list -->
+                        <div id="feed-list"></div>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Status bar -->
+            <div class="win98-statusbar" id="main-statusbar">
+                <span id="status-text">Ready</span>
+                <span id="status-count">0 objects</span>
+                <span id="status-user">Not signed in</span>
+            </div>
+        </div>
+
+        <!-- Taskbar -->
+        <div id="app-taskbar">
+            <button id="app-start-btn">⊞ Start</button>
+            <div id="app-taskbar-items">
+                <div class="taskbar-item active">🌍 Photo World</div>
+            </div>
+            <div id="app-taskbar-right">
+                <img id="taskbar-avatar" src="" class="hidden" />
+                <span id="app-clock">12:00 PM</span>
+            </div>
+        </div>
+
+    </div>
+
+    <!-- ══ Caption Modal (Win98 dialog) ══ -->
+    <div id="caption-modal" class="hidden">
+        <div class="win98-window win98-dialog" id="caption-dialog">
+            <div class="win98-titlebar">
+                <span class="win98-titlebar-icon">💾</span>
+                <span class="win98-titlebar-text">Save Photo — Add Caption</span>
+                <div class="win98-titlebar-btns">
+                    <button class="win98-btn-sm" id="caption-close-btn">✕</button>
+                </div>
+            </div>
+            <div class="win98-body dialog-body">
+                <div id="caption-preview-wrap">
+                    <img id="caption-preview-img" src="" alt="" />
+                </div>
+                <div class="win98-field-row">
+                    <label class="win98-label">Caption:</label>
+                    <input class="win98-input" type="text" id="caption-input" placeholder="describe this moment..." maxlength="120" />
+                </div>
+                <div id="caption-char-count">0 / 120 characters</div>
+                <div class="win98-btn-row">
+                    <button class="win98-btn" id="caption-submit">💾 Save</button>
+                    <button class="win98-btn" id="caption-cancel">Cancel</button>
+                </div>
             </div>
         </div>
     </div>
 
-    <!-- Vibe Modal -->
-    <div id="vibe-modal" class="hidden">
-        <div id="vibe-box">
-            <div id="vibe-box-label">Add a caption</div>
-            <input type="text" id="vibe-input" placeholder="describe this moment..." />
-            <div class="vibe-buttons">
-                <button id="vibe-cancel">Cancel</button>
-                <button id="vibe-submit">Post</button>
+    <!-- Sign out confirm dialog -->
+    <div id="signout-modal" class="hidden">
+        <div class="win98-window win98-dialog">
+            <div class="win98-titlebar">
+                <span class="win98-titlebar-icon">⚠️</span>
+                <span class="win98-titlebar-text">Sign Out</span>
+                <div class="win98-titlebar-btns">
+                    <button class="win98-btn-sm" onclick="document.getElementById('signout-modal').classList.add('hidden')">✕</button>
+                </div>
+            </div>
+            <div class="win98-body dialog-body">
+                <div class="dialog-icon-row">
+                    <span style="font-size:2rem;">⚠️</span>
+                    <p class="dialog-msg">Are you sure you want to sign out of Photo World?</p>
+                </div>
+                <div class="win98-btn-row">
+                    <button class="win98-btn" id="signout-confirm">Yes</button>
+                    <button class="win98-btn" onclick="document.getElementById('signout-modal').classList.add('hidden')">No</button>
+                </div>
             </div>
         </div>
-    </div>
-
-    <!-- Main -->
-    <div id="main">
-        <div id="map">
-            <div id="map-hint">Tap anywhere to place your photo</div>
-        </div>
-        <div id="feed" class="hidden">
-            <div id="feed-header"><h2>Recent</h2></div>
-            <div id="feed-list"></div>
-        </div>
-    </div>
-
-    <!-- Bottom Nav -->
-    <div id="bottom-nav">
-        <button id="home-btn" class="active">Map</button>
-        <button id="feed-btn">Feed</button>
-        <button id="signout-btn">Sign out</button>
     </div>
 
 </div>
 
-<!-- Toast -->
-<div id="toast"></div>
+<!-- Toast / notification -->
+<div id="toast">
+    <div id="toast-inner">
+        <span id="toast-icon">ℹ️</span>
+        <span id="toast-text"></span>
+    </div>
+</div>
 
 <script src="https://api.mapbox.com/mapbox-gl-js/v2.15.0/mapbox-gl.js"></script>
 <script src="script.js"></script>
